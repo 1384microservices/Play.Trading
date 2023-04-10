@@ -1,6 +1,7 @@
 using System;
 using Automatonymous;
 using Play.Trading.Service.Contracts;
+using Play.Trading.Service.Activities;
 
 namespace Play.Trading.Service.StateMachines;
 
@@ -40,7 +41,13 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
                 ctx.Instance.Received = DateTimeOffset.Now;
                 ctx.Instance.LastUpdated = ctx.Instance.Received;
             })
+            .Activity(x => x.OfType<CalculatePurchaseTotalActivity>())
             .TransitionTo(Accepted)
+            .Catch<Exception>(ex => ex.Then(ctx =>
+            {
+                ctx.Instance.ErrorMessage = ctx.Exception.Message;
+                ctx.Instance.LastUpdated = DateTimeOffset.UtcNow;
+            }).TransitionTo(Faulted))
         );
     }
 

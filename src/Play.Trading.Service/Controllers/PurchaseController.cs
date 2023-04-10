@@ -12,7 +12,7 @@ namespace Play.Trading.Service.Controllers;
 
 [ApiController]
 [Route("purchase")]
-[Authorize]
+// [Authorize]
 public class PurchaseController : ControllerBase
 {
     private readonly IPublishEndpoint _publishEndpoint;
@@ -27,6 +27,8 @@ public class PurchaseController : ControllerBase
     [HttpGet("status/{correlationId}")]
     public async Task<ActionResult<PurchaseDto>> GetStatusAsync(Guid correlationId)
     {
+        var claims = User.Claims;
+
         var response = await _purchaseClient.GetResponse<PurchaseState>(new GetPurchaseState(correlationId));
         var state = response.Message;
         var purchase = new PurchaseDto(
@@ -55,6 +57,6 @@ public class PurchaseController : ControllerBase
 
         await _publishEndpoint.Publish(message);
 
-        return AcceptedAtAction(nameof(GetStatusAsync), new { correlationId }, correlationId);
+        return AcceptedAtAction(nameof(GetStatusAsync), new { correlationId = correlationId }, correlationId);
     }
 }

@@ -1,5 +1,7 @@
+using System;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using GreenPipes;
 using MassTransit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -13,6 +15,7 @@ using Play.Common.MassTransit;
 using Play.Common.MongoDB;
 using Play.Common.Settings;
 using Play.Trading.Service.Entities;
+using Play.Trading.Service.Exceptions;
 using Play.Trading.Service.StateMachines;
 
 namespace Play.Trading.Service;
@@ -36,20 +39,15 @@ public class Startup
 
         AddMassTransit(services);
 
-        services.AddControllers(opt =>
-        {
-            opt.SuppressAsyncSuffixInActionNames = false;
-        })
-        .AddJsonOptions(o =>
-        {
-            o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-        })
-        ;
+        services
+            .AddAuthorization();
 
-        services.AddSwaggerGen(c =>
-        {
-            c.SwaggerDoc("v1", new OpenApiInfo { Title = "Play.Trading.Service", Version = "v1" });
-        });
+        services
+            .AddControllers(opt => { opt.SuppressAsyncSuffixInActionNames = false; })
+            .AddJsonOptions(o => { o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull; });
+
+        services
+            .AddSwaggerGen(c => { c.SwaggerDoc("v1", new OpenApiInfo { Title = "Play.Trading.Service", Version = "v1" }); });
     }
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -80,7 +78,11 @@ public class Startup
     {
         services.AddMassTransit(cfg =>
         {
-            cfg.UsingPlayEconomyRabbitMQ();
+            cfg.UsingPlayEconomyRabbitMQ(retryCfg =>
+            {
+                retryCfg.Interval(3, TimeSpan.FromSeconds(5));
+                retryCfg.Ignore<UnknownItemException>();
+            });
             cfg.AddConsumers(Assembly.GetEntryAssembly());
             cfg.AddSagaStateMachine<PurchaseStateMachine, PurchaseState>()
                 .MongoDbRepository(cfg =>
