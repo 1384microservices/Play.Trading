@@ -14,8 +14,11 @@ using Play.Common.Identity;
 using Play.Common.MassTransit;
 using Play.Common.MongoDB;
 using Play.Common.Settings;
+using Play.Identity.Contracts;
+using Play.Inventory.Contracts;
 using Play.Trading.Service.Entities;
 using Play.Trading.Service.Exceptions;
+using Play.Trading.Service.Settings;
 using Play.Trading.Service.StateMachines;
 
 namespace Play.Trading.Service;
@@ -37,10 +40,11 @@ public class Startup
             .AddMongoRepository<CatalogItem>("CatalogItems")
             .AddJwtBearerAuthentication();
 
-        AddMassTransit(services);
-
         services
             .AddAuthorization();
+
+        AddMassTransit(services);
+
 
         services
             .AddControllers(opt => { opt.SuppressAsyncSuffixInActionNames = false; })
@@ -76,23 +80,31 @@ public class Startup
 
     private void AddMassTransit(IServiceCollection services)
     {
-        services.AddMassTransit(cfg =>
+        var serviceSettings = Configuration.GetSection<ServiceSettings>();
+        var mongoDbSettings = Configuration.GetSection<MongoDbSettings>();
+        var queueSettings = Configuration.GetSection<QueueSettings>();
+
+        services.AddMassTransit(massTransitCfg =>
         {
-            cfg.UsingPlayEconomyRabbitMQ(retryCfg =>
+            massTransitCfg.UsingPlayEconomyRabbitMQ(retryCfg =>
             {
                 retryCfg.Interval(3, TimeSpan.FromSeconds(5));
                 retryCfg.Ignore<UnknownItemException>();
             });
-            cfg.AddConsumers(Assembly.GetEntryAssembly());
-            cfg.AddSagaStateMachine<PurchaseStateMachine, PurchaseState>()
-                .MongoDbRepository(cfg =>
-                {
-                    var serviceSettings = Configuration.GetSection<ServiceSettings>();
-                    var mongoDbSettings = Configuration.GetSection<MongoDbSettings>();
-                    cfg.Connection = mongoDbSettings.ConnectionString;
-                    cfg.DatabaseName = serviceSettings.Name;
-                });
+            massTransitCfg.AddConsumers(Assembly.GetEntryAssembly());
+            massTransitCfg.AddSagaStateMachine<PurchaseStateMachine, PurchaseState>(cfg =>
+            {
+                cfg.UseInMemoryOutbox();
+            }).MongoDbRepository(repositoryCfg =>
+            {
+                repositoryCfg.Connection = mongoDbSettings.ConnectionString;
+                repositoryCfg.DatabaseName = serviceSettings.Name;
+            });
         });
+
+        EndpointConvention.Map<GrantItems>(new Uri(queueSettings.GrantItemsQueueAddress));
+        EndpointConvention.Map<DebitGil>(new Uri(queueSettings.DebitGilQueueAddress));
+
         services.AddMassTransitHostedService();
         services.AddGenericRequestClient();
     }
