@@ -47,8 +47,14 @@ public class Startup
 
 
         services
-            .AddControllers(opt => { opt.SuppressAsyncSuffixInActionNames = false; })
-            .AddJsonOptions(o => { o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull; });
+            .AddControllers(opt =>
+            {
+                opt.SuppressAsyncSuffixInActionNames = false;
+            })
+            .AddJsonOptions(o =>
+            {
+                o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            });
 
         services
             .AddSwaggerGen(c => { c.SwaggerDoc("v1", new OpenApiInfo { Title = "Play.Trading.Service", Version = "v1" }); });
@@ -91,7 +97,9 @@ public class Startup
                 retryCfg.Interval(3, TimeSpan.FromSeconds(5));
                 retryCfg.Ignore<UnknownItemException>();
             });
+
             massTransitCfg.AddConsumers(Assembly.GetEntryAssembly());
+
             massTransitCfg.AddSagaStateMachine<PurchaseStateMachine, PurchaseState>(cfg =>
             {
                 cfg.UseInMemoryOutbox();
@@ -104,6 +112,7 @@ public class Startup
 
         EndpointConvention.Map<GrantItems>(new Uri(queueSettings.GrantItemsQueueAddress));
         EndpointConvention.Map<DebitGil>(new Uri(queueSettings.DebitGilQueueAddress));
+        EndpointConvention.Map<SubstractItems>(new Uri(queueSettings.SubstractItemsQueueAddress));
 
         services.AddMassTransitHostedService();
         services.AddGenericRequestClient();

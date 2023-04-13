@@ -12,7 +12,7 @@ namespace Play.Trading.Service.Controllers;
 
 [ApiController]
 [Route("purchase")]
-[Authorize]
+// [Authorize]
 public class PurchaseController : ControllerBase
 {
     private readonly IPublishEndpoint _publishEndpoint;
