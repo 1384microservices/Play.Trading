@@ -2,7 +2,6 @@ using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using MassTransit;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Play.Trading.Service.Contracts;
 using Play.Trading.Service.Dtos;
@@ -27,8 +26,6 @@ public class PurchaseController : ControllerBase
     [HttpGet("status/{idempotencyId}")]
     public async Task<ActionResult<PurchaseDto>> GetStatusAsync(Guid idempotencyId)
     {
-        var claims = User.Claims;
-
         var response = await _purchaseClient.GetResponse<PurchaseState>(new GetPurchaseState(idempotencyId));
         var state = response.Message;
         var purchase = new PurchaseDto(
@@ -45,20 +42,17 @@ public class PurchaseController : ControllerBase
         return Ok(purchase);
     }
 
-
     [HttpPost]
     public async Task<IActionResult> PostAsync(SubmitPurchaseDto purchase)
     {
-        var claims = User.Claims;
-
         var userId = Guid.Parse(User.FindFirstValue("sub"));
         var message = new PurchaseRequested(userId, purchase.ItemId.Value, purchase.Quantity, purchase.IdempotencyId.Value);
 
         await _publishEndpoint.Publish(message);
 
         return AcceptedAtAction(
-            nameof(GetStatusAsync), 
-            new { purchase.IdempotencyId }, 
+            nameof(GetStatusAsync),
+            new { purchase.IdempotencyId },
             new { purchase.IdempotencyId }
         );
     }
