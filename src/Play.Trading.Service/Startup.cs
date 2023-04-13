@@ -38,6 +38,8 @@ public class Startup
         services
             .AddMongo()
             .AddMongoRepository<CatalogItem>("CatalogItems")
+            .AddMongoRepository<InventoryItem>("InventoryItems")
+            .AddMongoRepository<ApplicationUser>("ApplicationUser")
             .AddJwtBearerAuthentication();
 
         services
