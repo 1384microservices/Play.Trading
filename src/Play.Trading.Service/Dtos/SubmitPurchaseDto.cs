@@ -8,5 +8,8 @@ public record SubmitPurchaseDto(
     Guid? ItemId,
 
     [Range(1, 100)]
-    int Quantity
+    int Quantity,
+
+    [Required]
+    Guid? IdempotencyId
 );

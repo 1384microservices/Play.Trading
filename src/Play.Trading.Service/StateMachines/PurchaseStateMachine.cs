@@ -30,6 +30,7 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
         ConfigureAccepted();
         ConfigureItemsGranted();
         ConfigureFaulted();
+        ConfigureCompleted();
     }
 
     private void ConfigureEvents()
@@ -68,6 +69,7 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
     private void ConfigureAccepted()
     {
         During(Accepted,
+            Ignore(PurchaseRequested),
             When(InventoryItemsGranted)
                 .Then(ctx =>
                 {
@@ -93,6 +95,8 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
     private void ConfigureItemsGranted()
     {
         During(ItemsGranted,
+            Ignore(PurchaseRequested),
+            Ignore(InventoryItemsGranted),
             When(GilDebited)
                 .Then(ctx =>
                 {
@@ -116,15 +120,25 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
         );
     }
 
+    private void ConfigureCompleted()
+    {
+        During(Completed,
+            Ignore(PurchaseRequested),
+            Ignore(InventoryItemsGranted),
+            Ignore(GilDebited)
+        );
+    }
+
     private void ConfigureAny()
     {
         DuringAny(When(GetPurchaseState).Respond(r => { return r.Instance; }));
     }
 
-    private void ConfigureFaulted() {
-        During(Faulted, 
-            Ignore(PurchaseRequested), 
-            Ignore(InventoryItemsGranted), 
+    private void ConfigureFaulted()
+    {
+        During(Faulted,
+            Ignore(PurchaseRequested),
+            Ignore(InventoryItemsGranted),
             Ignore(GilDebited)
         );
     }
