@@ -70,6 +70,12 @@ public class Startup
             app.UseDeveloperExceptionPage();
             app.UseSwagger();
             app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Play.Trading.Service v1"));
+                        app.UseCors(opt =>
+            {
+                opt.WithOrigins(Configuration["AllowedOrigin"]);
+                opt.AllowAnyHeader();
+                opt.AllowAnyMethod();
+            });
         }
 
         app.UseHttpsRedirection();
