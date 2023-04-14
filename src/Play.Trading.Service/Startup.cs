@@ -5,6 +5,7 @@ using GreenPipes;
 using MassTransit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,6 +20,7 @@ using Play.Inventory.Contracts;
 using Play.Trading.Service.Entities;
 using Play.Trading.Service.Exceptions;
 using Play.Trading.Service.Settings;
+using Play.Trading.Service.SignalR;
 using Play.Trading.Service.StateMachines;
 
 namespace Play.Trading.Service;
@@ -44,22 +46,29 @@ public class Startup
 
         AddMassTransit(services);
 
-        services
-            .AddAuthorization();
+        services.AddAuthorization();
 
 
         services
-            .AddControllers(opt =>
-            {
-                opt.SuppressAsyncSuffixInActionNames = false;
-            })
-            .AddJsonOptions(o =>
-            {
-                o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-            });
+        .AddControllers(opt =>
+        {
+            opt.SuppressAsyncSuffixInActionNames = false;
+        })
+        .AddJsonOptions(o =>
+        {
+            o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        });
 
         services
-            .AddSwaggerGen(c => { c.SwaggerDoc("v1", new OpenApiInfo { Title = "Play.Trading.Service", Version = "v1" }); });
+        .AddSwaggerGen(c =>
+        {
+            c.SwaggerDoc("v1", new OpenApiInfo { Title = "Play.Trading.Service", Version = "v1" });
+        });
+
+        services
+        .AddSingleton<IUserIdProvider, UserIdProvider>()
+        .AddSingleton<MessageHub>()
+        .AddSignalR();
     }
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -67,29 +76,30 @@ public class Startup
     {
         if (env.IsDevelopment())
         {
-            app.UseDeveloperExceptionPage();
-            app.UseSwagger();
-            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Play.Trading.Service v1"));
-                        app.UseCors(opt =>
-            {
-                opt.WithOrigins(Configuration["AllowedOrigin"]);
-                opt.AllowAnyHeader();
-                opt.AllowAnyMethod();
-            });
+            app
+                .UseDeveloperExceptionPage()
+                .UseSwagger()
+                .UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Play.Trading.Service v1"))
+                .UseCors(builder =>
+                {
+                    builder
+                    .WithOrigins(Configuration["AllowedOrigin"])
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
+                });
         }
 
-        app.UseHttpsRedirection();
-
-        app.UseRouting();
-
-        app.UseAuthentication();
-
-        app.UseAuthorization();
-
-        app.UseEndpoints(endpoints =>
-        {
-            endpoints.MapControllers();
-        });
+        app
+            .UseHttpsRedirection()
+            .UseRouting()
+            .UseAuthentication()
+            .UseAuthorization()
+            .UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+                endpoints.MapHub<MessageHub>("/messagehub");
+            });
     }
 
     private void AddMassTransit(IServiceCollection services)
