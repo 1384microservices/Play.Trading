@@ -1,0 +1,27 @@
+# Please refer https://aka.ms/HTTPSinContainer on how to setup an https developer certificate for your ASP.NET Core service.
+
+version: '3.4'
+
+services:
+  playtradingservice:
+    image: play.trading
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      args:
+        - GITHUB_PAT
+    ports:
+      - 5006:5006
+    environment:
+      - MongoDbSettings__Host
+      - MongoDbSettings__Port
+      - RabbitMQSettings__Host
+      - IdentitySettings__AdminUserPassword
+    networks:
+      - pe-network
+
+networks:
+  pe-network:
+    external: true
+    name: pe-network
+    driver: bridge
