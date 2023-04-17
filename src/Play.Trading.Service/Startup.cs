@@ -91,7 +91,6 @@ public class Startup
         }
 
         app
-            .UseHttpsRedirection()
             .UseRouting()
             .UseAuthentication()
             .UseAuthorization()
