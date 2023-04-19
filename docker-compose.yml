@@ -13,9 +13,12 @@ services:
     ports:
       - 5006:5006
     environment:
+      - ServiceSettings__MessageBroker
       - MongoDbSettings__Host
       - MongoDbSettings__Port
+      - MongoDbSettings__ConnectionString
       - RabbitMQSettings__Host
+      - ServiceBusSettings__ConnectionString
       - IdentitySettings__AdminUserPassword
     networks:
       - pe-network

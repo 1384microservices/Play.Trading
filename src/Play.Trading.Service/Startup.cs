@@ -109,18 +109,21 @@ public class Startup
 
         services.AddMassTransit(massTransitCfg =>
         {
-            massTransitCfg.UsingPlayEconomyRabbitMQ(retryCfg =>
+            massTransitCfg.UsingPlayEconomyMessageBroker(Configuration, retryCfg =>
             {
                 retryCfg.Interval(3, TimeSpan.FromSeconds(5));
                 retryCfg.Ignore<UnknownItemException>();
             });
 
-            massTransitCfg.AddConsumers(Assembly.GetEntryAssembly());
+            massTransitCfg
+            .AddConsumers(Assembly.GetEntryAssembly());
 
-            massTransitCfg.AddSagaStateMachine<PurchaseStateMachine, PurchaseState>(cfg =>
+            massTransitCfg
+            .AddSagaStateMachine<PurchaseStateMachine, PurchaseState>(cfg =>
             {
                 cfg.UseInMemoryOutbox();
-            }).MongoDbRepository(repositoryCfg =>
+            })
+            .MongoDbRepository(repositoryCfg =>
             {
                 repositoryCfg.Connection = mongoDbSettings.ConnectionString;
                 repositoryCfg.DatabaseName = serviceSettings.Name;
