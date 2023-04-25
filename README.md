@@ -1,7 +1,7 @@
 ### Publish service container image
 ```powershell
 # Create docker image
-$imageVersion="1.0.5"
+$imageVersion="1.0.6"
 docker-compose build
 docker tag "play.trading:latest" "play.trading:${imageVersion}"
 
