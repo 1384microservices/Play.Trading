@@ -15,12 +15,14 @@ spec:
       serviceAccountName: trading-serviceaccount
       containers:
       - name: trading
-        image: playeconomy1384.azurecr.io/play.trading:1.0.6
+        image: playeconomy1384.azurecr.io/play.trading:1.0.7
         env:
         - name: ServiceSettings__MessageBroker
           value: SERVICEBUS
         - name: ServiceSettings__KeyVaultName
           value: playeconomy1384
+        - name: ServiceSettings__Authority
+          value: https://playeconomy1384.northeurope.cloudapp.azure.com/identity-svc
         resources:
           limits:
             memory: "128Mi"
@@ -44,7 +46,7 @@ kind: Service
 metadata:
   name: trading-service
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: trading
   ports:
