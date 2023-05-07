@@ -43,3 +43,17 @@ $k8sNS="trading"
 kubectl create namespace $k8sNS
 kubectl apply -f kubernetes\trading.yaml -n $k8sNS
 ```
+
+### Install the helm chart
+```powershell
+$helmUser=[guid]::Empty.Guid
+
+$appname="playeconomy1384"
+$registry="${appname}.azurecr.io"
+$helmPassword=az acr login --name $appname --expose-token --output tsv --query accessToken
+helm registry login $registry --username $helmUser --password $helmPassword
+
+$k8sNS="trading"
+$chartVersion="0.1.0"
+helm upgrade trading-service oci://$registry/helm/microservice --version $chartVersion -f ./helm/values.yaml -n $k8sNS --install
+```
