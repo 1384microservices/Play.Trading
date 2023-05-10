@@ -41,5 +41,3 @@ jobs:
               playeconomy1384.azurecr.io/play.trading:${{needs.generate-version.outputs.new_version}}
           build-args: |
             GITHUB_PAT=${{secrets.GITHUB_TOKEN}}
-
-# Let's see how this works
