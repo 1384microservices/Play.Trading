@@ -1,4 +1,4 @@
-name: Play.Trading CICD
+name: Play.Trading service CICD
 
 on:
   push:
@@ -28,16 +28,67 @@ jobs:
     runs-on: ubuntu-latest
     needs: generate-version
     permissions:
+      id-token: write
       contents: read
       packages: read
     steps:
       - uses: actions/checkout@v3
 
+      - name: Azure Login
+        uses: azure/login@v1.4.3
+        with:
+          client-id: ${{secrets._AZURE_CLIENT_ID}}
+          tenant-id: ${{secrets._AZURE_TENANT_ID}}
+          subscription-id: ${{secrets._AZURE_SUB_ID}}
+
+      - name: ACR Login
+        shell: pwsh
+        run: |
+          az acr login `
+            --name ${{vars.AZ_ACR_REGISTRY_NAME}}
+
       - name: Build and publish docker image
         uses: docker/build-push-action@v4
         with:
-          push: false
+          push: true
           tags: |
-              playeconomy1384.azurecr.io/play.trading:${{needs.generate-version.outputs.new_version}}
+            ${{vars.AZ_ACR_REGISTRY_NAME}}.azurecr.io/play.trading:${{needs.generate-version.outputs.new_version}}
           build-args: |
             GITHUB_PAT=${{secrets.GITHUB_TOKEN}}
+
+      - name: Get AKS credentials
+        shell: pwsh
+        run: |
+          az aks get-credentials `
+            --resource-group ${{vars.AZ_RG_NAME}} `
+            --name ${{vars.AZ_AKS_CLUSTER_NAME}}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v2.0
+
+      - name: Login to Helm registry
+        shell: pwsh
+        run: |
+          $helmPassword=az acr login `
+            --name ${{vars.AZ_ACR_REGISTRY_NAME}} `
+            --expose-token `
+            --output tsv `
+            --query accessToken
+
+          helm registry login "${{vars.AZ_ACR_REGISTRY_NAME}}.azurecr.io" `
+            --username ${{vars.HELM_USER_GUID}} `
+            --password $helmPassword
+
+      - name: Deploy Helm chart
+        shell: pwsh
+        run: |
+          $registry="${{vars.AZ_ACR_REGISTRY_NAME}}.azurecr.io"
+          $namespace="trading"
+          $serviceName="trading-service"        
+          helm upgrade $serviceName oci://$registry/helm/microservice `
+            --version ${{vars.HELM_CHART_VERSION}} `
+            -f helm/values.yaml `
+            -n $namespace `
+            --set image.tag=${{needs.generate-version.outputs.new_version}} `
+            --install `
+            --wait
