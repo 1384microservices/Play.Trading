@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Play.Common.Configuration;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Play.Trading.Service
 {
@@ -18,6 +20,11 @@ namespace Play.Trading.Service
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
-                });
+                })
+                // .ConfigureLogging(cfg => cfg.AddJsonConsole(opt =>
+                // {
+                //     opt.JsonWriterOptions = new JsonWriterOptions() { Indented = true };
+                // }))
+                ;
     }
 }
