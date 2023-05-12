@@ -1,28 +1,20 @@
-using System;
-using System.Reflection;
 using System.Text.Json.Serialization;
-using GreenPipes;
-using MassTransit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
 using Play.Common.Configuration;
 using Play.Common.HealthChecks;
 using Play.Common.Identity;
-using Play.Common.MassTransit;
 using Play.Common.MongoDB;
-using Play.Common.Settings;
-using Play.Identity.Contracts;
-using Play.Inventory.Contracts;
+using Play.Trading.Service.Configuration;
 using Play.Trading.Service.Entities;
-using Play.Trading.Service.Exceptions;
 using Play.Trading.Service.Settings;
 using Play.Trading.Service.SignalR;
-using Play.Trading.Service.StateMachines;
 
 namespace Play.Trading.Service;
 
@@ -45,33 +37,34 @@ public class Startup
             .AddMongoRepository<ApplicationUser>("ApplicationUser")
             .AddJwtBearerAuthentication();
 
-        AddMassTransit(services);
+        services
+            .AddMassTransit(Configuration);
 
-        services.AddAuthorization();
+        services
+            .AddAuthorization();
 
 
         services
-        .AddControllers(opt =>
-        {
-            opt.SuppressAsyncSuffixInActionNames = false;
-        })
-        .AddJsonOptions(o =>
-        {
-            o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-        });
+            .AddControllers(opt => opt.SuppressAsyncSuffixInActionNames = false)
+            .AddJsonOptions(o => o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull);
 
         services
-        .AddSwaggerGen(c =>
-        {
-            c.SwaggerDoc("v1", new OpenApiInfo { Title = "Play.Trading.Service", Version = "v1" });
-        });
+            .AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Play.Trading.Service", Version = "v1" }));
 
         services
-        .AddSingleton<IUserIdProvider, UserIdProvider>()
-        .AddSingleton<MessageHub>()
-        .AddSignalR();
+            .AddSingleton<IUserIdProvider, UserIdProvider>()
+            .AddSingleton<MessageHub>().AddSignalR();
 
-        services.AddHealthChecks().AddMongoDb();
+        services
+            .AddHealthChecks()
+            .AddMongoDb();
+
+        services
+            .AddLogging(builder =>
+            {
+                var seqSettings = Configuration.GetSection<SeqSettings>();
+                builder.AddSeq(serverUrl: seqSettings.ServerUrl);
+            });
     }
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -103,42 +96,5 @@ public class Startup
                 endpoints.MapHub<MessageHub>("/messagehub");
                 endpoints.MapPlayEconomyHealthChecks();
             });
-    }
-
-    private void AddMassTransit(IServiceCollection services)
-    {
-        var serviceSettings = Configuration.GetSection<ServiceSettings>();
-        var mongoDbSettings = Configuration.GetSection<MongoDbSettings>();
-        var queueSettings = Configuration.GetSection<QueueSettings>();
-
-        services.AddMassTransit(massTransitCfg =>
-        {
-            massTransitCfg.UsingPlayEconomyMessageBroker(Configuration, retryCfg =>
-            {
-                retryCfg.Interval(3, TimeSpan.FromSeconds(5));
-                retryCfg.Ignore<UnknownItemException>();
-            });
-
-            massTransitCfg
-            .AddConsumers(Assembly.GetEntryAssembly());
-
-            massTransitCfg
-            .AddSagaStateMachine<PurchaseStateMachine, PurchaseState>(cfg =>
-            {
-                cfg.UseInMemoryOutbox();
-            })
-            .MongoDbRepository(repositoryCfg =>
-            {
-                repositoryCfg.Connection = mongoDbSettings.ConnectionString;
-                repositoryCfg.DatabaseName = serviceSettings.Name;
-            });
-        });
-
-        EndpointConvention.Map<GrantItems>(new Uri(queueSettings.GrantItemsQueueAddress));
-        EndpointConvention.Map<DebitGil>(new Uri(queueSettings.DebitGilQueueAddress));
-        EndpointConvention.Map<SubstractItems>(new Uri(queueSettings.SubstractItemsQueueAddress));
-
-        services.AddMassTransitHostedService();
-        services.AddGenericRequestClient();
     }
 }
