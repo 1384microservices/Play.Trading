@@ -10,7 +10,9 @@ using Microsoft.OpenApi.Models;
 using Play.Common.Configuration;
 using Play.Common.HealthChecks;
 using Play.Common.Identity;
+using Play.Common.Logging;
 using Play.Common.MongoDB;
+using Play.Common.Settings;
 using Play.Trading.Service.Configuration;
 using Play.Trading.Service.Entities;
 using Play.Trading.Service.Settings;
@@ -37,8 +39,7 @@ public class Startup
             .AddMongoRepository<ApplicationUser>("ApplicationUser")
             .AddJwtBearerAuthentication();
 
-        services
-            .AddMassTransit(Configuration);
+        services.AddMassTransit(Configuration);
 
         services
             .AddAuthorization();
@@ -59,12 +60,7 @@ public class Startup
             .AddHealthChecks()
             .AddMongoDb();
 
-        services
-            .AddLogging(builder =>
-            {
-                var seqSettings = Configuration.GetSection<SeqSettings>();
-                builder.AddSeq(serverUrl: seqSettings.ServerUrl);
-            });
+        services.AddSeqLogging(Configuration.GetSeqSettings());
     }
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
