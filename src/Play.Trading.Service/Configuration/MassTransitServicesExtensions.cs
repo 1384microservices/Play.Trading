@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using GreenPipes;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,9 +47,6 @@ public static class MassTransitServicesExtensions
         EndpointConvention.Map<GrantItems>(new Uri(queueSettings.GrantItemsQueueAddress));
         EndpointConvention.Map<DebitGil>(new Uri(queueSettings.DebitGilQueueAddress));
         EndpointConvention.Map<SubstractItems>(new Uri(queueSettings.SubstractItemsQueueAddress));
-
-        services.AddMassTransitHostedService();
-        services.AddGenericRequestClient();
 
         return services;
     }

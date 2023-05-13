@@ -1,5 +1,4 @@
 using System;
-using Automatonymous;
 using Play.Trading.Service.Contracts;
 using Play.Trading.Service.Activities;
 using Play.Inventory.Contracts;
@@ -56,29 +55,29 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
             When(PurchaseRequested)
                 .Then(ctx =>
                 {
-                    ctx.Instance.UserId = ctx.Data.UserId;
-                    ctx.Instance.ItemId = ctx.Data.ItemId;
-                    ctx.Instance.Quantity = ctx.Data.Quantity;
-                    ctx.Instance.Received = DateTimeOffset.Now;
-                    ctx.Instance.LastUpdated = ctx.Instance.Received;
-                    _logger.LogInformation("Calculating total price for purchase with CorrelationId {CorrelationId}...", ctx.Instance.CorrelationId);
+                    ctx.Saga.UserId = ctx.Message.UserId;
+                    ctx.Saga.ItemId = ctx.Message.ItemId;
+                    ctx.Saga.Quantity = ctx.Message.Quantity;
+                    ctx.Saga.Received = DateTimeOffset.Now;
+                    ctx.Saga.LastUpdated = ctx.Saga.Received;
+                    _logger.LogInformation("Calculating total price for purchase with CorrelationId {CorrelationId}...", ctx.Saga.CorrelationId);
                 })
                 .Activity(x => x.OfType<CalculatePurchaseTotalActivity>())
-                .Send(ctx => new GrantItems(ctx.Instance.UserId, ctx.Instance.ItemId, ctx.Instance.Quantity, ctx.Instance.CorrelationId))
+                .Send(ctx => new GrantItems(ctx.Saga.UserId, ctx.Saga.ItemId, ctx.Saga.Quantity, ctx.Saga.CorrelationId))
                 .TransitionTo(Accepted)
                 .Catch<Exception>(ex => ex.Then(ctx =>
                 {
-                    ctx.Instance.ErrorMessage = ctx.Exception.Message;
-                    ctx.Instance.LastUpdated = DateTimeOffset.UtcNow;
+                    ctx.Saga.ErrorMessage = ctx.Exception.Message;
+                    ctx.Saga.LastUpdated = DateTimeOffset.UtcNow;
                     _logger.LogError(
                         ctx.Exception, 
                         "Could not calculate the total price of purchase with {CorrelationId}. Error: {ErrorMessage}", 
-                        ctx.Instance.CorrelationId,
-                        ctx.Instance.ErrorMessage
+                        ctx.Saga.CorrelationId,
+                        ctx.Saga.ErrorMessage
                     );
                 })
                 .TransitionTo(Faulted))
-                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Instance))
+                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga))
         );
     }
 
@@ -89,33 +88,33 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
             When(InventoryItemsGranted)
                 .Then(ctx =>
                 {
-                    ctx.Instance.LastUpdated = DateTimeOffset.UtcNow;
+                    ctx.Saga.LastUpdated = DateTimeOffset.UtcNow;
                     _logger.LogInformation(
                         "Items of purchase with CorrelationId {CorrelationId} have been granted to user {UserId}.",
-                        ctx.Instance.CorrelationId,
-                        ctx.Instance.UserId
+                        ctx.Saga.CorrelationId,
+                        ctx.Saga.UserId
                     );
                 })
                 .Send(ctx => new DebitGil(
-                    ctx.Instance.UserId,
-                    ctx.Instance.PurchaseTotal.Value,
-                    ctx.Instance.CorrelationId
+                    ctx.Saga.UserId,
+                    ctx.Saga.PurchaseTotal.Value,
+                    ctx.Saga.CorrelationId
                 ))
                 .TransitionTo(ItemsGranted),
 
             When(GrantItemsFaulted)
                 .Then(ctx =>
                 {
-                    ctx.Instance.ErrorMessage = ctx.Data.Exceptions[0].Message;
-                    ctx.Instance.LastUpdated = DateTimeOffset.UtcNow;
+                    ctx.Saga.ErrorMessage = ctx.Message.Exceptions[0].Message;
+                    ctx.Saga.LastUpdated = DateTimeOffset.UtcNow;
                     _logger.LogError(
                         "Could not grant items for purchase with CorrelationId {CorrelationId}. Error: {ErrorMessage}",
-                        ctx.Instance.CorrelationId,
-                        ctx.Instance.ErrorMessage
+                        ctx.Saga.CorrelationId,
+                        ctx.Saga.ErrorMessage
                     );
                 })
                 .TransitionTo(Faulted)
-                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Instance))
+                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga))
         );
     }
 
@@ -127,37 +126,37 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
             When(GilDebited)
                 .Then(ctx =>
                 {
-                    ctx.Instance.LastUpdated = DateTimeOffset.UtcNow;
+                    ctx.Saga.LastUpdated = DateTimeOffset.UtcNow;
                     _logger.LogInformation(
                         "The total price of purchase with CorrelationId {CorrelationId} has been debited from user {UserID}",
-                        ctx.Instance.CorrelationId,
-                        ctx.Instance.UserId
+                        ctx.Saga.CorrelationId,
+                        ctx.Saga.UserId
                     );
                 })
                 .TransitionTo(Completed)
-                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Instance))
+                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga))
                 ,
 
             When(DebitGilFaulted)
                 .Send(ctx => new SubstractItems(
-                    ctx.Instance.UserId,
-                    ctx.Instance.ItemId,
-                    ctx.Instance.Quantity,
-                    ctx.Instance.CorrelationId
+                    ctx.Saga.UserId,
+                    ctx.Saga.ItemId,
+                    ctx.Saga.Quantity,
+                    ctx.Saga.CorrelationId
                 ))
                 .Then(ctx =>
                 {
-                    ctx.Instance.ErrorMessage = ctx.Data.Exceptions[0].Message;
-                    ctx.Instance.LastUpdated = DateTimeOffset.UtcNow;
+                    ctx.Saga.ErrorMessage = ctx.Message.Exceptions[0].Message;
+                    ctx.Saga.LastUpdated = DateTimeOffset.UtcNow;
                     _logger.LogError(
                         "Could not debit the total price of purchase with CorrelationId {CorrelationId} from {UserId}. Error: {ErrorMessage}",
-                        ctx.Instance.CorrelationId,
-                        ctx.Instance.UserId,
-                        ctx.Instance.ErrorMessage
+                        ctx.Saga.CorrelationId,
+                        ctx.Saga.UserId,
+                        ctx.Saga.ErrorMessage
                     );
                 })
                 .TransitionTo(Faulted)
-                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Instance))
+                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga))
         );
     }
 
@@ -172,7 +171,7 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
 
     private void ConfigureAny()
     {
-        DuringAny(When(GetPurchaseState).Respond(r => { return r.Instance; }));
+        DuringAny(When(GetPurchaseState).Respond(r => { return r.Saga; }));
     }
 
     private void ConfigureFaulted()

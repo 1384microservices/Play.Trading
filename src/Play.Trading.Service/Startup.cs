@@ -5,17 +5,14 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
 using Play.Common.Configuration;
 using Play.Common.HealthChecks;
 using Play.Common.Identity;
 using Play.Common.Logging;
 using Play.Common.MongoDB;
-using Play.Common.Settings;
 using Play.Trading.Service.Configuration;
 using Play.Trading.Service.Entities;
-using Play.Trading.Service.Settings;
 using Play.Trading.Service.SignalR;
 
 namespace Play.Trading.Service;
@@ -39,7 +36,8 @@ public class Startup
             .AddMongoRepository<ApplicationUser>("ApplicationUser")
             .AddJwtBearerAuthentication();
 
-        services.AddMassTransit(Configuration);
+        services
+            .AddMassTransit(Configuration);
 
         services
             .AddAuthorization();
