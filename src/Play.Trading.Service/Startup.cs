@@ -15,6 +15,7 @@ using Play.Common.Logging;
 using Play.Common.MongoDB;
 using Play.Trading.Service.Configuration;
 using Play.Trading.Service.Entities;
+using Play.Trading.Service.Settings;
 using Play.Trading.Service.SignalR;
 
 namespace Play.Trading.Service;
@@ -66,13 +67,19 @@ public class Startup
         services
             .AddOpenTelemetryTracing(builder => {
                 var serviceSettings = Configuration.GetServiceSettings();
+                var jaegerSettings = Configuration.GetSection<JaegerSettings>();
                 builder
                     .AddSource(serviceSettings.Name)
                     .AddSource("MassTransit")
                     .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName: serviceSettings.Name))
                     .AddHttpClientInstrumentation()
                     .AddAspNetCoreInstrumentation()
-                    .AddConsoleExporter();
+                    .AddConsoleExporter()
+                    .AddJaegerExporter(opt => {
+                        opt.AgentHost = jaegerSettings.Host;
+                        opt.AgentPort = jaegerSettings.Port;
+                    })
+                    ;
             });
     }
 
