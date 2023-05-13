@@ -6,6 +6,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Play.Common.Configuration;
 using Play.Common.HealthChecks;
 using Play.Common.Identity;
@@ -58,7 +60,20 @@ public class Startup
             .AddHealthChecks()
             .AddMongoDb();
 
-        services.AddSeqLogging(Configuration.GetSeqSettings());
+        services
+            .AddSeqLogging(Configuration.GetSeqSettings());
+
+        services
+            .AddOpenTelemetryTracing(builder => {
+                var serviceSettings = Configuration.GetServiceSettings();
+                builder
+                    .AddSource(serviceSettings.Name)
+                    .AddSource("MassTransit")
+                    .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName: serviceSettings.Name))
+                    .AddHttpClientInstrumentation()
+                    .AddAspNetCoreInstrumentation()
+                    .AddConsoleExporter();
+            });
     }
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
