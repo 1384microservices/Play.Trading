@@ -6,6 +6,11 @@ using Play.Identity.Contracts;
 using MassTransit;
 using Play.Trading.Service.SignalR;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.Metrics;
+using Microsoft.Extensions.Configuration;
+using Play.Common.Settings;
+using Play.Common.Configuration;
+using System.Collections.Generic;
 
 namespace Play.Trading.Service.StateMachines;
 
@@ -13,6 +18,10 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
 {
     private readonly MessageHub _hub;
     private readonly ILogger<PurchaseStateMachine> _logger;
+    private readonly Counter<int> _purchaseStartedCounter;
+    private readonly Counter<int> _purchaseSuccessCounter;
+    private readonly Counter<int> _purchaseFailedCounter;
+
     public State Accepted { get; }
     public State ItemsGranted { get; }
     public State Completed { get; }
@@ -24,7 +33,10 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
     public Event<Fault<GrantItems>> GrantItemsFaulted { get; }
     public Event<Fault<DebitGil>> DebitGilFaulted { get; }
 
-    public PurchaseStateMachine(MessageHub hub, ILogger<PurchaseStateMachine> logger)
+    public PurchaseStateMachine(
+        MessageHub hub,
+        ILogger<PurchaseStateMachine> logger,
+        IConfiguration configuration)
     {
         InstanceState(state => state.CurrentState);
         ConfigureEvents();
@@ -37,6 +49,12 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
 
         _hub = hub;
         _logger = logger;
+        
+        var meter = new Meter(configuration.GetServiceSettings().Name);
+
+        _purchaseStartedCounter = meter.CreateCounter<int>("PurchaseStarted");
+        _purchaseSuccessCounter = meter.CreateCounter<int>("PurchaseSuccess");
+        _purchaseFailedCounter = meter.CreateCounter<int>("PurchaseFailed");
     }
 
     private void ConfigureEvents()
@@ -61,6 +79,7 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
                     ctx.Saga.Received = DateTimeOffset.Now;
                     ctx.Saga.LastUpdated = ctx.Saga.Received;
                     _logger.LogInformation("Calculating total price for purchase with CorrelationId {CorrelationId}...", ctx.Saga.CorrelationId);
+                    _purchaseStartedCounter.Add(1, new KeyValuePair<string, object>(nameof(ctx.Saga.ItemId), ctx.Saga.ItemId));
                 })
                 .Activity(x => x.OfType<CalculatePurchaseTotalActivity>())
                 .Send(ctx => new GrantItems(ctx.Saga.UserId, ctx.Saga.ItemId, ctx.Saga.Quantity, ctx.Saga.CorrelationId))
@@ -70,11 +89,13 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
                     ctx.Saga.ErrorMessage = ctx.Exception.Message;
                     ctx.Saga.LastUpdated = DateTimeOffset.UtcNow;
                     _logger.LogError(
-                        ctx.Exception, 
-                        "Could not calculate the total price of purchase with {CorrelationId}. Error: {ErrorMessage}", 
+                        ctx.Exception,
+                        "Could not calculate the total price of purchase with {CorrelationId}. Error: {ErrorMessage}",
                         ctx.Saga.CorrelationId,
                         ctx.Saga.ErrorMessage
                     );
+
+                    _purchaseFailedCounter.Add(1, new KeyValuePair<string, object>(nameof(ctx.Saga.ItemId), ctx.Saga.ItemId));
                 })
                 .TransitionTo(Faulted))
                 .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga))
@@ -112,6 +133,7 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
                         ctx.Saga.CorrelationId,
                         ctx.Saga.ErrorMessage
                     );
+                    _purchaseFailedCounter.Add(1, new KeyValuePair<string, object>(nameof(ctx.Saga.ItemId), ctx.Saga.ItemId));
                 })
                 .TransitionTo(Faulted)
                 .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga))
@@ -132,10 +154,10 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
                         ctx.Saga.CorrelationId,
                         ctx.Saga.UserId
                     );
+                    _purchaseSuccessCounter.Add(1, new KeyValuePair<string, object>(nameof(ctx.Saga.ItemId), ctx.Saga.ItemId));
                 })
                 .TransitionTo(Completed)
-                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga))
-                ,
+                .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga)),
 
             When(DebitGilFaulted)
                 .Send(ctx => new SubstractItems(
@@ -154,6 +176,7 @@ public class PurchaseStateMachine : MassTransitStateMachine<PurchaseState>
                         ctx.Saga.UserId,
                         ctx.Saga.ErrorMessage
                     );
+                    _purchaseFailedCounter.Add(1, new KeyValuePair<string, object>(nameof(ctx.Saga.ItemId), ctx.Saga.ItemId));
                 })
                 .TransitionTo(Faulted)
                 .ThenAsync(async ctx => await _hub.SendStatusAsync(ctx.Saga))

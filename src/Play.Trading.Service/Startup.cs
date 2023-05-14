@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
+using OpenTelemetry.Metrics;
 using Play.Common.Configuration;
 using Play.Common.HealthChecks;
 using Play.Common.Identity;
@@ -61,10 +62,18 @@ public class Startup
             .AddMongoDb();
 
         services
-            .AddSeqLogging(Configuration.GetSeqSettings());
+            .AddSeqLogging(Configuration.GetSeqSettings())
+            .AddTracing(Configuration.GetServiceSettings(), Configuration.GetSection<JaegerSettings>())
+            .AddOpenTelemetryMetrics(builder =>
+            {
+                builder
+                    .AddMeter(Configuration.GetServiceSettings().Name)
+                    .AddHttpClientInstrumentation()
+                    .AddAspNetCoreInstrumentation()
+                    .AddPrometheusExporter()
+                    ;
+            });
 
-        services
-            .AddTracing(Configuration.GetServiceSettings(), Configuration.GetSection<JaegerSettings>());
     }
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -87,6 +96,7 @@ public class Startup
         }
 
         app
+            .UseOpenTelemetryPrometheusScrapingEndpoint()
             .UseRouting()
             .UseAuthentication()
             .UseAuthorization()
