@@ -7,9 +7,8 @@
   <ItemGroup>
     <PackageReference Include="MassTransit.MongoDb" Version="8.0.15" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
-    <PackageReference Include="OpenTelemetry.Exporter.Prometheus" Version="1.2.0-rc5" />
     <PackageReference Include="PLay.Catalog.Contracts" Version="1.0.2" />
-    <PackageReference Include="Play.Common" Version="1.0.33" />
+    <PackageReference Include="Play.Common" Version="1.0.34" />
     <PackageReference Include="Play.Identity.Contracts" Version="1.0.60" />
     <PackageReference Include="Play.Inventory.Contracts" Version="1.0.14" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />

@@ -64,15 +64,8 @@ public class Startup
         services
             .AddSeqLogging(Configuration.GetSeqSettings())
             .AddTracing(Configuration.GetServiceSettings(), Configuration.GetSection<JaegerSettings>())
-            .AddOpenTelemetryMetrics(builder =>
-            {
-                builder
-                    .AddMeter(Configuration.GetServiceSettings().Name)
-                    .AddHttpClientInstrumentation()
-                    .AddAspNetCoreInstrumentation()
-                    .AddPrometheusExporter()
-                    ;
-            });
+            .AddMetrics(Configuration.GetServiceSettings())
+            ;
 
     }
 
